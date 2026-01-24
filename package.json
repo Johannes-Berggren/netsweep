@@ -1,5 +1,5 @@
 {
-  "name": "@johannes-berggren/netprobe",
+  "name": "netsweep",
   "version": "1.0.0",
   "description": "Network Swiss Army Knife - CLI tool for comprehensive network diagnostics",
   "type": "module",
