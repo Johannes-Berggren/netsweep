@@ -23,11 +23,14 @@ export async function getConnectionInfo(): Promise<ConnectionInfo> {
   const localIP = localIPEn0.trim() || localIPEn1.trim() || 'Unknown';
   const interfaceName = localIPEn0.trim() ? 'Wi-Fi (en0)' : localIPEn1.trim() ? 'Ethernet (en1)' : 'Unknown';
 
+  // Deduplicate DNS servers
+  const dnsServers = [...new Set(dns.trim().split('\n').filter(Boolean))];
+
   return {
     interface: interfaceName,
     localIP,
     gateway: gateway.trim() || 'Unknown',
     externalIP: externalIP.trim(),
-    dns: dns.trim().split('\n').filter(Boolean),
+    dns: dnsServers,
   };
 }

@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import boxen from 'boxen';
-import Table from 'cli-table3';
 import type { Device } from '../scanners/devices';
 import type { ConnectionInfo } from '../scanners/connection';
 import type { SpeedResult } from '../scanners/speed';
@@ -45,12 +44,17 @@ export function section(title: string, content: string[]) {
 }
 
 export function connectionSection(info: ConnectionInfo) {
+  // Limit DNS display to avoid overflow
+  const dnsDisplay = info.dns.length > 2
+    ? `${info.dns.slice(0, 2).join(', ')} +${info.dns.length - 2} more`
+    : info.dns.join(', ');
+
   section('CONNECTION', [
     `${chalk.gray('Interface:')}    ${chalk.white(info.interface)}`,
     `${chalk.gray('Local IP:')}     ${chalk.white(info.localIP)}`,
     `${chalk.gray('Gateway:')}      ${chalk.white(info.gateway)}`,
     `${chalk.gray('External IP:')}  ${chalk.white(info.externalIP)}`,
-    `${chalk.gray('DNS:')}          ${chalk.white(info.dns.join(', '))}`,
+    `${chalk.gray('DNS:')}          ${chalk.white(dnsDisplay)}`,
   ]);
 }
 
@@ -63,39 +67,31 @@ export function speedSection(speed: SpeedResult) {
 }
 
 export function devicesSection(devices: Device[]) {
-  const table = new Table({
-    head: ['IP', 'MAC', 'Vendor', 'Name'].map(h => chalk.cyan(h)),
-    style: {
-      head: [],
-      border: ['gray'],
-    },
-    chars: {
-      'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
-      'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
-      'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
-      'right': '│', 'right-mid': '┤', 'middle': '│'
-    },
-    colWidths: [17, 20, 14, 14],
-  });
+  const lines: string[] = [];
 
+  // Header row
+  const headerIP = padRight(chalk.cyan('IP'), 16);
+  const headerMAC = padRight(chalk.cyan('MAC'), 19);
+  const headerVendor = padRight(chalk.cyan('Vendor'), 12);
+  const headerName = chalk.cyan('Name');
+  lines.push(`${headerIP} ${headerMAC} ${headerVendor} ${headerName}`);
+
+  // Device rows
   devices.forEach(d => {
+    const ip = padRight(d.ip, 16);
+    const mac = padRight(d.mac, 19);
+    const vendor = d.isCurrentDevice && d.vendor === 'Unknown' ? 'Apple' : d.vendor;
+    const vendorStr = padRight(truncate(vendor, 12), 12);
     const name = d.isCurrentDevice
       ? chalk.green('This Mac')
       : d.hostname
-        ? truncate(d.hostname, 12)
+        ? truncate(d.hostname, 10)
         : chalk.gray('-');
 
-    table.push([
-      d.ip,
-      d.mac,
-      truncate(d.vendor, 12),
-      name,
-    ]);
+    lines.push(`${chalk.white(ip)} ${chalk.gray(mac)} ${chalk.white(vendorStr)} ${name}`);
   });
 
-  console.log(chalk.gray(`┌─ ${chalk.white.bold('DEVICES')} (${devices.length} found) ${'─'.repeat(BOX_WIDTH - 18 - String(devices.length).length)}┐`));
-  console.log(table.toString());
-  console.log();
+  section(`DEVICES (${devices.length} found)`, lines);
 }
 
 export function portsSection(ports: PortResult[], host: string) {
@@ -175,9 +171,19 @@ export function healthSection(checks: HealthCheck[]) {
   const lines = checks.map(check => {
     const name = padRight(check.name, 14);
     const status = check.status === 'up' ? chalk.green('✓') : chalk.red('✗');
-    const latency = check.status === 'up' ? `${check.latency}ms` : 'timeout';
 
-    return `${chalk.white(name)}${status}  ${chalk.white(latency)}`;
+    let latencyStr: string;
+    if (check.status !== 'up') {
+      latencyStr = chalk.red('timeout');
+    } else if (check.latency < 100) {
+      latencyStr = chalk.green(`${check.latency}ms`);
+    } else if (check.latency < 300) {
+      latencyStr = chalk.yellow(`${check.latency}ms`);
+    } else {
+      latencyStr = chalk.red(`${check.latency}ms`);
+    }
+
+    return `${chalk.white(name)}${status}  ${latencyStr}`;
   });
 
   section('INTERNET HEALTH', lines);

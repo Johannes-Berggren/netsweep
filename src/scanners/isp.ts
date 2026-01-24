@@ -16,9 +16,18 @@ export async function getIspInfo(): Promise<IspInfo | null> {
 
     const data = await response.json();
 
+    // Extract ASN and ISP name from 'as' field (format: "AS25400 Telia Norge AS")
+    const asField = data.as || '';
+    const asnMatch = asField.match(/^(AS\d+)\s+(.+)$/);
+    const asn = asnMatch ? asnMatch[1] : 'Unknown';
+    const ispFromAs = asnMatch ? asnMatch[2] : '';
+
+    // Use ISP name from 'as' field, fallback to 'org', then 'isp'
+    const ispName = ispFromAs || data.org || data.isp || 'Unknown';
+
     return {
-      isp: data.isp || 'Unknown',
-      asn: data.as ? data.as.split(' ')[0] : 'Unknown',
+      isp: ispName,
+      asn,
       country: data.country || 'Unknown',
       city: data.city || 'Unknown',
       lat: data.lat || 0,

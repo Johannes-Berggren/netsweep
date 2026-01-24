@@ -1,6 +1,6 @@
 {
   "name": "netsweep",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Network Swiss Army Knife - CLI tool for comprehensive network diagnostics",
   "type": "module",
   "bin": {
