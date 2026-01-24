@@ -24,12 +24,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jberggren/netprobe.git"
+    "url": "git+https://github.com/Johannes-Berggren/netprobe.git"
   },
   "bugs": {
-    "url": "https://github.com/jberggren/netprobe/issues"
+    "url": "https://github.com/Johannes-Berggren/netprobe/issues"
   },
-  "homepage": "https://github.com/jberggren/netprobe#readme",
+  "homepage": "https://github.com/Johannes-Berggren/netprobe#readme",
   "engines": {
     "node": ">=18",
     "bun": ">=1.0"
