@@ -5,13 +5,20 @@ import type { Device } from '../scanners/devices';
 import type { ConnectionInfo } from '../scanners/connection';
 import type { SpeedResult } from '../scanners/speed';
 import type { PortResult } from '../scanners/ports';
-import { formatSpeed, formatLatency, padRight } from '../utils/format';
+import type { WifiInfo } from '../scanners/wifi';
+import type { IspInfo } from '../scanners/isp';
+import type { TraceHop } from '../scanners/traceroute';
+import type { HealthCheck } from '../scanners/health';
+import { getSignalQuality } from '../scanners/wifi';
+import { formatCoordinates } from '../scanners/isp';
+import { getMaxLatency } from '../scanners/traceroute';
+import { formatSpeed, formatLatency, padRight, padLeft } from '../utils/format';
 
 const BOX_WIDTH = 62;
 
 export function header() {
   console.log(
-    boxen(chalk.bold.cyan('  NETPROBE - Network Diagnostics  '), {
+    boxen(chalk.bold.cyan('  NETSWEEP - Network Diagnostics  '), {
       padding: 0,
       margin: { top: 1, bottom: 0, left: 0, right: 0 },
       borderStyle: 'round',
@@ -118,12 +125,74 @@ function stripAnsi(str: string): string {
   return str.replace(/\x1B\[[0-9;]*m/g, '');
 }
 
+export function wifiSection(info: WifiInfo) {
+  const quality = getSignalQuality(info.signal);
+  const qualityColor = quality === 'Excellent' ? chalk.green : quality === 'Good' ? chalk.yellow : chalk.red;
+
+  section('WIFI', [
+    `${chalk.gray('SSID:')}         ${chalk.white(info.ssid)}`,
+    `${chalk.gray('Signal:')}       ${chalk.white(`${info.signal} dBm`)} (${qualityColor(quality)})`,
+    `${chalk.gray('Noise:')}        ${chalk.white(`${info.noise} dBm`)}`,
+    `${chalk.gray('Channel:')}      ${chalk.white(`${info.channel}`)} (${chalk.white(info.band)})`,
+    `${chalk.gray('Tx Rate:')}      ${chalk.white(`${info.txRate} Mbps`)}`,
+  ]);
+}
+
+export function ispSection(info: IspInfo) {
+  section('ISP & LOCATION', [
+    `${chalk.gray('ISP:')}          ${chalk.white(info.isp)}`,
+    `${chalk.gray('ASN:')}          ${chalk.white(info.asn)}`,
+    `${chalk.gray('Location:')}     ${chalk.white(`${info.city}, ${info.country}`)}`,
+    `${chalk.gray('Coordinates:')}  ${chalk.white(formatCoordinates(info.lat, info.lon))}`,
+  ]);
+}
+
+export function tracerouteSection(hops: TraceHop[], target: string) {
+  if (hops.length === 0) {
+    section(`TRACEROUTE (to ${target})`, [
+      chalk.gray('No hops recorded'),
+    ]);
+    return;
+  }
+
+  const maxLatency = getMaxLatency(hops);
+  const maxBarWidth = 30;
+
+  const lines = hops.map(hop => {
+    const hopNum = padLeft(String(hop.hop), 3);
+    const ip = padRight(hop.ip, 16);
+    const latency = padLeft(`${hop.latency.toFixed(1)}ms`, 8);
+    const barWidth = Math.ceil((hop.latency / maxLatency) * maxBarWidth);
+    const bar = chalk.cyan('█'.repeat(Math.max(1, barWidth)));
+
+    return `${chalk.white(hopNum)}  ${chalk.white(ip)}${chalk.white(latency)}   ${bar}`;
+  });
+
+  section(`TRACEROUTE (to ${target})`, lines);
+}
+
+export function healthSection(checks: HealthCheck[]) {
+  const lines = checks.map(check => {
+    const name = padRight(check.name, 14);
+    const status = check.status === 'up' ? chalk.green('✓') : chalk.red('✗');
+    const latency = check.status === 'up' ? `${check.latency}ms` : 'timeout';
+
+    return `${chalk.white(name)}${status}  ${chalk.white(latency)}`;
+  });
+
+  section('INTERNET HEALTH', lines);
+}
+
 export interface ScanResults {
   connection?: ConnectionInfo;
   devices?: Device[];
   speed?: SpeedResult;
   ports?: PortResult[];
   gateway?: string;
+  wifi?: WifiInfo;
+  isp?: IspInfo;
+  traceroute?: TraceHop[];
+  health?: HealthCheck[];
 }
 
 export function outputJson(results: ScanResults) {
