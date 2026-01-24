@@ -1,5 +1,5 @@
 {
-  "name": "@jberggren/netprobe",
+  "name": "@johannes-berggren/netprobe",
   "version": "1.0.0",
   "description": "Network Swiss Army Knife - CLI tool for comprehensive network diagnostics",
   "type": "module",

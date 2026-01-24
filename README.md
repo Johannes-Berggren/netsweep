@@ -46,10 +46,10 @@ Network Swiss Army Knife - A single command for comprehensive network diagnostic
 
 ```bash
 # Run directly without installing
-bunx @jberggren/netprobe
+bunx @johannes-berggren/netprobe
 
 # Or install globally
-bun install -g @jberggren/netprobe
+bun install -g @johannes-berggren/netprobe
 netprobe
 ```
 
@@ -57,10 +57,10 @@ netprobe
 
 ```bash
 # Run directly
-npx @jberggren/netprobe
+npx @johannes-berggren/netprobe
 
 # Or install globally
-npm install -g @jberggren/netprobe
+npm install -g @johannes-berggren/netprobe
 netprobe
 ```
 
