@@ -18,9 +18,13 @@
     "cli",
     "speed-test",
     "port-scanner",
+    "wifi",
+    "traceroute",
+    "isp",
     "arp",
     "devices",
-    "terminal"
+    "terminal",
+    "macos"
   ],
   "author": "Johannes Berggren",
   "license": "MIT",
@@ -42,7 +46,6 @@
   "dependencies": {
     "chalk": "^5.3.0",
     "boxen": "^7.1.1",
-    "cli-table3": "^0.6.3",
     "ora": "^8.0.1"
   },
   "devDependencies": {
