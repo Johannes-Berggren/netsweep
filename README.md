@@ -95,8 +95,8 @@ netsweep
 ### From source
 
 ```bash
-git clone https://github.com/Johannes-Berggren/netprobe.git
-cd netprobe
+git clone https://github.com/Johannes-Berggren/netsweep.git
+cd netsweep
 bun install
 bun link
 netsweep

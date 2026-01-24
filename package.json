@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Johannes-Berggren/netprobe.git"
+    "url": "git+https://github.com/Johannes-Berggren/netsweep.git"
   },
   "bugs": {
-    "url": "https://github.com/Johannes-Berggren/netprobe/issues"
+    "url": "https://github.com/Johannes-Berggren/netsweep/issues"
   },
-  "homepage": "https://github.com/Johannes-Berggren/netprobe#readme",
+  "homepage": "https://github.com/Johannes-Berggren/netsweep#readme",
   "engines": {
     "node": ">=18"
   },
