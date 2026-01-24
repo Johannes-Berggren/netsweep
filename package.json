@@ -1,0 +1,50 @@
+{
+  "name": "@jberggren/netprobe",
+  "version": "1.0.0",
+  "description": "Network Swiss Army Knife - CLI tool for comprehensive network diagnostics",
+  "type": "module",
+  "bin": {
+    "netprobe": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "keywords": [
+    "network",
+    "diagnostics",
+    "cli",
+    "speed-test",
+    "port-scanner",
+    "arp",
+    "devices",
+    "terminal"
+  ],
+  "author": "Johannes Berggren",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jberggren/netprobe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jberggren/netprobe/issues"
+  },
+  "homepage": "https://github.com/jberggren/netprobe#readme",
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "boxen": "^7.1.1",
+    "cli-table3": "^0.6.3",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
