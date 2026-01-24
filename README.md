@@ -1,10 +1,10 @@
-# netprobe
+# netsweep
 
 Network Swiss Army Knife - A single command for comprehensive network diagnostics.
 
 ```
 ╭──────────────────────────────────╮
-│  NETPROBE - Network Diagnostics  │
+│  NETSWEEP - Network Diagnostics  │
 ╰──────────────────────────────────╯
 ┌─ CONNECTION ────────────────────────────────────────────────┐
 │  Interface:    Wi-Fi (en0)                                   │
@@ -29,6 +29,31 @@ Network Swiss Army Knife - A single command for comprehensive network diagnostic
 │  53/tcp    DNS       OPEN                                    │
 │  80/tcp    HTTP      OPEN                                    │
 └──────────────────────────────────────────────────────────────┘
+┌─ WIFI ──────────────────────────────────────────────────────┐
+│  SSID:         MyNetwork                                     │
+│  Signal:       -52 dBm (Excellent)                           │
+│  Noise:        -90 dBm                                       │
+│  Channel:      36 (5 GHz)                                    │
+│  Tx Rate:      867 Mbps                                      │
+└──────────────────────────────────────────────────────────────┘
+┌─ ISP & LOCATION ────────────────────────────────────────────┐
+│  ISP:          Telenor Norge AS                              │
+│  ASN:          AS2119                                        │
+│  Location:     Oslo, Norway                                  │
+│  Coordinates:  59.9139° N, 10.7522° E                        │
+└──────────────────────────────────────────────────────────────┘
+┌─ TRACEROUTE (to 1.1.1.1) ───────────────────────────────────┐
+│   1  192.168.0.1      1.2ms   ██                             │
+│   2  10.0.0.1         8.4ms   ████                           │
+│   3  85.123.45.1     12.1ms   ██████                         │
+│   4  1.1.1.1         14.3ms   ███████                        │
+└──────────────────────────────────────────────────────────────┘
+┌─ INTERNET HEALTH ───────────────────────────────────────────┐
+│  Google        ✓  12ms                                       │
+│  Cloudflare    ✓  8ms                                        │
+│  GitHub        ✓  45ms                                       │
+│  AWS           ✓  23ms                                       │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
@@ -37,6 +62,10 @@ Network Swiss Army Knife - A single command for comprehensive network diagnostic
 - **Device Discovery** - Find all devices on your network via ARP with vendor identification
 - **Speed Test** - Download/upload speeds and latency via Cloudflare
 - **Port Scanner** - Scan common ports on any host
+- **WiFi Info** - Signal strength, noise, channel, and transmit rate
+- **ISP & Geolocation** - ISP name, ASN, and location lookup
+- **Traceroute** - Visual traceroute with latency bars
+- **Internet Health** - Check connectivity to major services
 - **Beautiful Output** - Clean terminal UI with colors and tables
 - **JSON Output** - Pipe results to other tools
 
@@ -50,7 +79,7 @@ bunx netsweep
 
 # Or install globally
 bun install -g netsweep
-netprobe
+netsweep
 ```
 
 ### Using npm
@@ -61,36 +90,40 @@ npx netsweep
 
 # Or install globally
 npm install -g netsweep
-netprobe
+netsweep
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/jberggren/netprobe.git
+git clone https://github.com/Johannes-Berggren/netprobe.git
 cd netprobe
 bun install
 bun link
-netprobe
+netsweep
 ```
 
 ## Usage
 
 ```bash
-# Full network scan (connection, speed, devices, ports)
-netprobe
+# Full network scan (all diagnostics)
+netsweep
 
 # Individual scans
-netprobe -d          # Devices only
-netprobe -s          # Speed test only
-netprobe -p          # Gateway ports only
+netsweep -d          # Devices only
+netsweep -s          # Speed test only
+netsweep -p          # Gateway ports only
+netsweep -w          # WiFi info only
+netsweep --isp       # ISP & location only
+netsweep --trace     # Traceroute only
+netsweep --health    # Internet health only
 
 # Scan specific host
-netprobe -p -t 192.168.0.7
+netsweep -p -t 192.168.0.7
 
 # JSON output for scripting
-netprobe --json
-netprobe -d --json | jq '.devices[] | select(.vendor == "Apple")'
+netsweep --json
+netsweep -d --json | jq '.devices[] | select(.vendor == "Apple")'
 ```
 
 ## Options
@@ -101,9 +134,13 @@ netprobe -d --json | jq '.devices[] | select(.vendor == "Apple")'
 | `--devices` | `-d` | Scan for network devices |
 | `--speed` | `-s` | Run speed test |
 | `--ports` | `-p` | Scan gateway ports |
+| `--wifi` | `-w` | Show WiFi info |
+| `--isp` | `-i` | Show ISP & geolocation |
+| `--trace` | `-r` | Run traceroute to 1.1.1.1 |
+| `--health` | | Check internet health |
 | `--target <ip>` | `-t` | Scan specific IP for ports |
 | `--json` | | Output as JSON |
-| `--help` | `-h` | Show help |
+| `--help` | | Show help |
 
 ## Requirements
 
@@ -116,6 +153,10 @@ netprobe -d --json | jq '.devices[] | select(.vendor == "Apple")'
 - **Devices**: Parses the ARP table with MAC vendor lookup (1000+ vendors)
 - **Speed**: Tests against Cloudflare's speed test endpoints
 - **Ports**: TCP connect scan on common service ports
+- **WiFi**: Reads from macOS system_profiler
+- **ISP**: Queries ip-api.com (free, no API key required)
+- **Traceroute**: Runs native traceroute command
+- **Health**: HTTP HEAD requests to major services
 
 ## License
 
