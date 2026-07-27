@@ -9,7 +9,9 @@ export interface IspInfo {
 
 export async function getIspInfo(): Promise<IspInfo | null> {
   try {
-    const response = await fetch('http://ip-api.com/json');
+    const response = await fetch('http://ip-api.com/json', {
+      signal: AbortSignal.timeout(4000),
+    });
     if (!response.ok) {
       return null;
     }

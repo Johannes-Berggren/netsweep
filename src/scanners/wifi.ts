@@ -13,7 +13,10 @@ export interface WifiInfo {
 
 export async function getWifiInfo(): Promise<WifiInfo | null> {
   // Try airport command first (older macOS)
-  let output = await exec('/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I');
+  let output = await exec(
+    '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I',
+    { recordFailure: false }
+  );
 
   if (output) {
     return parseAirportOutput(output);

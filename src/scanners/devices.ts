@@ -30,12 +30,18 @@ function isSpecialAddress(ip: string): boolean {
 
 export async function scanDevices(localIP?: string): Promise<Device[]> {
   // Get current device's MAC
-  const ifconfigOutput = await exec('ifconfig en0 | grep ether');
+  const ifconfigOutput = await exec('ifconfig en0 | grep ether', { recordFailure: false });
   const currentMacMatch = ifconfigOutput.match(/ether\s+([0-9a-f:]+)/i);
   const currentMac = currentMacMatch ? normalizeMac(currentMacMatch[1]) : '';
 
-  // Read ARP table
-  const arpOutput = await exec('arp -a');
+  // Read ARP table. `arp -a` reverse-resolves every entry to populate the Name
+  // column, which costs seconds when the resolver is slow and can stall
+  // outright when it is blocked. Fall back to the numeric table so a DNS stall
+  // costs hostnames rather than the entire device list.
+  let arpOutput = await exec('arp -a', { timeoutMs: 8000 });
+  if (!arpOutput) {
+    arpOutput = await exec('arp -n -a', { timeoutMs: 2000 });
+  }
 
   // Parse: "? (192.168.0.1) at f0:81:75:22:32:22 on en0 [ethernet]"
   // or: "hostname (192.168.0.1) at f0:81:75:22:32:22 on en0 [ethernet]"

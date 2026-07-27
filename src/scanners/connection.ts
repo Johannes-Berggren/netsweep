@@ -11,8 +11,8 @@ export interface ConnectionInfo {
 export async function getConnectionInfo(): Promise<ConnectionInfo> {
   // Try to find the active interface
   const [localIPEn0, localIPEn1, gateway, externalIP, dns] = await Promise.all([
-    exec('ipconfig getifaddr en0'),
-    exec('ipconfig getifaddr en1'),
+    exec('ipconfig getifaddr en0', { recordFailure: false }),
+    exec('ipconfig getifaddr en1', { recordFailure: false }),
     exec("netstat -nr | grep default | head -1 | awk '{print $2}'"),
     fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) })
       .then(r => r.text())
