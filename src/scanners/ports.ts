@@ -1,4 +1,4 @@
-import { connect, type Socket } from 'net';
+import { tcpProbe } from '../utils/net';
 
 const COMMON_PORTS: Record<number, string> = {
   21: 'FTP',
@@ -39,28 +39,7 @@ export async function scanPorts(
     .map(r => ({ ...r, service: COMMON_PORTS[r.port] || 'Unknown' }));
 }
 
-function checkPort(host: string, port: number, timeout = 1000): Promise<PortResult> {
-  return new Promise(resolve => {
-    const socket: Socket = connect({ host, port, timeout });
-
-    const cleanup = () => {
-      socket.removeAllListeners();
-      socket.destroy();
-    };
-
-    socket.on('connect', () => {
-      cleanup();
-      resolve({ port, service: '', open: true });
-    });
-
-    socket.on('error', () => {
-      cleanup();
-      resolve({ port, service: '', open: false });
-    });
-
-    socket.on('timeout', () => {
-      cleanup();
-      resolve({ port, service: '', open: false });
-    });
-  });
+async function checkPort(host: string, port: number, timeout = 1000): Promise<PortResult> {
+  const { open } = await tcpProbe(host, port, timeout);
+  return { port, service: '', open };
 }

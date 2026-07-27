@@ -72,6 +72,10 @@ netsweep -p -t 192.168.0.7
 # JSON output for scripting
 netsweep --json
 netsweep -d --json | jq '.devices[] | select(.vendor == "Apple")'
+
+# Diagnose a slow or partial scan
+netsweep --verbose      # per-phase timings, and which probes failed
+netsweep --timeout 3    # give up on any phase after 3 seconds
 ```
 
 ## Options
@@ -87,6 +91,8 @@ netsweep -d --json | jq '.devices[] | select(.vendor == "Apple")'
 | `--trace` | `-r` | Run traceroute to 1.1.1.1 |
 | `--health` | | Check internet health |
 | `--target <ip>` | `-t` | Scan specific IP for ports |
+| `--timeout <sec>` | | Cap every scan phase at `<sec>` seconds |
+| `--verbose` | | Show per-phase timings and why probes failed |
 | `--json` | | Output as JSON |
 | `--help` | | Show help |
 
@@ -99,12 +105,18 @@ netsweep -d --json | jq '.devices[] | select(.vendor == "Apple")'
 
 - **Connection**: Uses `ipconfig`, `netstat`, and ipify.org API
 - **Devices**: Parses the ARP table with MAC vendor lookup (1000+ vendors)
-- **Speed**: Tests against Cloudflare's speed test endpoints
+- **Speed**: Download/upload against Cloudflare's speed test endpoints
+- **Latency**: TCP handshake timing against public resolvers, sampled five
+  times against a single host so the jitter figure is real variance
 - **Ports**: TCP connect scan on common service ports
 - **WiFi**: Reads from macOS system_profiler
 - **ISP**: Queries ip-api.com (free, no API key required)
 - **Traceroute**: Runs native traceroute command
 - **Health**: HTTP HEAD requests to major services
+
+Every phase runs under a deadline, so one unreachable host or blocked probe
+can't wedge the scan. A probe that fails reports `unreachable` rather than a
+misleading `0ms` — run `--verbose` to see exactly which one and why.
 
 ## License
 

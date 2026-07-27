@@ -16,10 +16,13 @@ import {
   ispSection,
   tracerouteSection,
   healthSection,
+  notesSection,
   outputJson,
   type ScanResults,
 } from '../ui/output';
 import { startSpinner, updateSpinner, stopSpinner } from '../ui/spinner';
+import { withDeadline, DeadlineError } from '../utils/deadline';
+import { record, drain, isVerbose } from '../utils/diagnostics';
 
 export interface ScanOptions {
   devices: boolean;
@@ -31,159 +34,209 @@ export interface ScanOptions {
   health: boolean;
   json: boolean;
   target?: string;
+  /** Clamps every phase budget below; from --timeout. */
+  timeoutMs?: number;
 }
 
-export async function scan(options: ScanOptions): Promise<void> {
-  const results: ScanResults = {};
+// Worst-case wait per phase. Without these a single wedged scanner - an
+// untimed exec, a dropped packet - hangs the entire run indefinitely.
+const BUDGETS_MS = {
+  connection: 6000,
+  // Generous: `arp -a` reverse-resolves each entry, and devices.ts needs room
+  // to fall back to the numeric table if that stalls.
+  devices: 12000,
+  speed: 25000,
+  ports: 4000,
+  wifi: 6000,
+  isp: 5000,
+  trace: 12000,
+  health: 6000,
+};
 
-  // Always get connection info first (needed for other scans)
-  if (!options.json) {
+/**
+ * Runs one phase under a deadline and records the outcome. Returns undefined
+ * rather than throwing, so one dead phase never aborts the rest of the scan.
+ */
+async function runPhase<T>(
+  scope: string,
+  label: string,
+  budgetMs: number,
+  quiet: boolean,
+  fn: (signal: AbortSignal) => Promise<T>
+): Promise<T | undefined> {
+  if (!quiet) {
+    updateSpinner(label);
+  }
+
+  const started = performance.now();
+  try {
+    const value = await withDeadline(scope, budgetMs, fn);
+    record({ scope, status: 'ok', durationMs: performance.now() - started });
+    return value;
+  } catch (error) {
+    const timedOut = error instanceof DeadlineError;
+    record({
+      scope,
+      status: timedOut ? 'timeout' : 'failed',
+      durationMs: performance.now() - started,
+      detail: timedOut ? `exceeded ${budgetMs}ms budget` : (error as Error).message,
+    });
+    return undefined;
+  }
+}
+
+/** Returns the process exit code. */
+export async function scan(options: ScanOptions): Promise<number> {
+  const results: ScanResults = {};
+  const quiet = options.json;
+  const budget = (ms: number) => Math.min(ms, options.timeoutMs ?? Infinity);
+
+  if (!quiet) {
     startSpinner('Getting connection info...');
   }
 
-  try {
-    results.connection = await getConnectionInfo();
-    results.gateway = options.target || results.connection.gateway;
-  } catch (error) {
-    stopSpinner();
-    if (!options.json) {
-      console.error('Failed to get connection info');
-    }
-    return;
-  }
+  // Connection info enriches every report, but only a gateway port scan depends
+  // on it. A slow external-IP lookup must not suppress independent phases.
+  const connection = await runPhase(
+    'connection',
+    'Getting connection info...',
+    budget(BUDGETS_MS.connection),
+    quiet,
+    () => getConnectionInfo()
+  );
 
-  // Run device scan
+  if (connection) {
+    results.connection = connection;
+  }
+  results.gateway = options.target || connection?.gateway;
+
   if (options.devices) {
-    if (!options.json) {
-      updateSpinner('Scanning for devices...');
-    }
-    try {
-      results.devices = await scanDevices(results.connection.localIP);
-    } catch {
-      // Continue with other scans
-    }
+    results.devices = await runPhase(
+      'devices',
+      'Scanning for devices...',
+      budget(BUDGETS_MS.devices),
+      quiet,
+      () => scanDevices(connection?.localIP)
+    );
   }
 
-  // Run speed test
   if (options.speed) {
-    if (!options.json) {
-      updateSpinner('Running speed test...');
-    }
-    try {
-      results.speed = await runSpeedTest((stage) => {
-        if (!options.json) {
-          updateSpinner(stage);
-        }
+    results.speed = await runPhase(
+      'speed',
+      'Running speed test...',
+      budget(BUDGETS_MS.speed),
+      quiet,
+      signal =>
+        runSpeedTest(stage => {
+          if (!quiet) {
+            updateSpinner(stage);
+          }
+        }, signal)
+    );
+  }
+
+  if (options.ports) {
+    if (results.gateway) {
+      results.ports = await runPhase(
+        'ports',
+        `Scanning ports on ${results.gateway}...`,
+        budget(BUDGETS_MS.ports),
+        quiet,
+        () => scanPorts(results.gateway!)
+      );
+    } else {
+      record({
+        scope: 'ports',
+        status: 'skipped',
+        durationMs: 0,
+        detail: 'no gateway or --target available',
       });
-    } catch {
-      // Continue with other scans
     }
   }
 
-  // Run port scan
-  if (options.ports && results.gateway) {
-    if (!options.json) {
-      updateSpinner(`Scanning ports on ${results.gateway}...`);
-    }
-    try {
-      results.ports = await scanPorts(results.gateway);
-    } catch {
-      // Continue
-    }
-  }
-
-  // Get WiFi info
   if (options.wifi) {
-    if (!options.json) {
-      updateSpinner('Getting WiFi info...');
-    }
-    try {
-      const wifi = await getWifiInfo();
-      if (wifi) {
-        results.wifi = wifi;
-      }
-    } catch {
-      // Continue
-    }
+    results.wifi =
+      (await runPhase('wifi', 'Getting WiFi info...', budget(BUDGETS_MS.wifi), quiet, async () => {
+        const wifi = await getWifiInfo();
+        if (!wifi) throw new Error('Wi-Fi information unavailable');
+        return wifi;
+      })) ?? undefined;
   }
 
-  // Get ISP info
   if (options.isp) {
-    if (!options.json) {
-      updateSpinner('Getting ISP info...');
-    }
-    try {
-      const isp = await getIspInfo();
-      if (isp) {
-        results.isp = isp;
-      }
-    } catch {
-      // Continue
-    }
+    results.isp =
+      (await runPhase('isp', 'Getting ISP info...', budget(BUDGETS_MS.isp), quiet, async () => {
+        const isp = await getIspInfo();
+        if (!isp) throw new Error('ISP information unavailable');
+        return isp;
+      })) ?? undefined;
   }
 
-  // Run traceroute
   if (options.trace) {
-    if (!options.json) {
-      updateSpinner('Running traceroute...');
-    }
-    try {
-      results.traceroute = await runTraceroute();
-    } catch {
-      // Continue
-    }
+    results.traceroute = await runPhase(
+      'traceroute',
+      'Running traceroute...',
+      budget(BUDGETS_MS.trace),
+      quiet,
+      () => runTraceroute()
+    );
   }
 
-  // Check internet health
   if (options.health) {
-    if (!options.json) {
-      updateSpinner('Checking internet health...');
-    }
-    try {
-      results.health = await checkInternetHealth();
-    } catch {
-      // Continue
-    }
+    results.health = await runPhase(
+      'health',
+      'Checking internet health...',
+      budget(BUDGETS_MS.health),
+      quiet,
+      () => checkInternetHealth()
+    );
   }
 
   stopSpinner();
 
-  // Output results
-  if (options.json) {
-    outputJson(results);
-  } else {
-    header();
-
-    if (results.connection) {
-      connectionSection(results.connection);
-    }
-
-    if (results.speed) {
-      speedSection(results.speed);
-    }
-
-    if (results.devices) {
-      devicesSection(results.devices);
-    }
-
-    if (results.ports !== undefined && results.gateway) {
-      portsSection(results.ports, results.gateway);
-    }
-
-    if (results.wifi) {
-      wifiSection(results.wifi);
-    }
-
-    if (results.isp) {
-      ispSection(results.isp);
-    }
-
-    if (results.traceroute) {
-      tracerouteSection(results.traceroute, '1.1.1.1');
-    }
-
-    if (results.health) {
-      healthSection(results.health);
-    }
+  if (quiet) {
+    // Always emitted: a script has nowhere else to learn that a phase failed.
+    outputJson({ ...results, diagnostics: drain() });
+    return 0;
   }
+
+  header();
+
+  if (results.connection) {
+    connectionSection(results.connection);
+  }
+
+  if (results.speed) {
+    speedSection(results.speed);
+  }
+
+  if (results.devices) {
+    devicesSection(results.devices);
+  }
+
+  if (results.ports !== undefined && results.gateway) {
+    portsSection(results.ports, results.gateway);
+  }
+
+  if (results.wifi) {
+    wifiSection(results.wifi);
+  }
+
+  if (results.isp) {
+    ispSection(results.isp);
+  }
+
+  if (results.traceroute) {
+    tracerouteSection(results.traceroute, '1.1.1.1');
+  }
+
+  if (results.health) {
+    healthSection(results.health);
+  }
+
+  if (isVerbose()) {
+    notesSection(drain());
+  }
+
+  return 0;
 }

@@ -12,6 +12,7 @@ import { getSignalQuality } from '../scanners/wifi';
 import { formatCoordinates } from '../scanners/isp';
 import { getMaxLatency } from '../scanners/traceroute';
 import { formatSpeed, formatLatency, padRight, padLeft } from '../utils/format';
+import type { Diagnostic, ProbeStatus } from '../utils/diagnostics';
 
 const BOX_WIDTH = 62;
 
@@ -58,11 +59,21 @@ export function connectionSection(info: ConnectionInfo) {
   ]);
 }
 
+// A failed probe must never render as a plausible number: '0ms' and '0.0 Mbps'
+// are indistinguishable from a real reading, which hid this bug for a long time.
+function orFailed(status: ProbeStatus, render: () => string): string {
+  if (status === 'ok') return render();
+  if (status === 'skipped') return chalk.gray('skipped');
+  return chalk.red('unreachable');
+}
+
 export function speedSection(speed: SpeedResult) {
+  const via = speed.latencyHost ? chalk.gray(` via ${speed.latencyHost}`) : '';
+
   section('SPEED', [
-    `${chalk.green('↓')} ${chalk.gray('Download:')}   ${chalk.white.bold(formatSpeed(speed.download))}`,
-    `${chalk.blue('↑')} ${chalk.gray('Upload:')}     ${chalk.white.bold(formatSpeed(speed.upload))}`,
-    `${chalk.gray('Latency:')}      ${chalk.white(formatLatency(speed.latency))} ${chalk.gray(`(jitter: ${formatLatency(speed.jitter)})`)}`,
+    `${chalk.green('↓')} ${chalk.gray('Download:')}   ${orFailed(speed.status.download, () => chalk.white.bold(formatSpeed(speed.download)))}`,
+    `${chalk.blue('↑')} ${chalk.gray('Upload:')}     ${orFailed(speed.status.upload, () => chalk.white.bold(formatSpeed(speed.upload)))}`,
+    `${chalk.gray('Latency:')}      ${orFailed(speed.status.latency, () => `${chalk.white(formatLatency(speed.latency))} ${chalk.gray(`(jitter: ${formatLatency(speed.jitter)})`)}${via}`)}`,
   ]);
 }
 
@@ -189,6 +200,35 @@ export function healthSection(checks: HealthCheck[]) {
   section('INTERNET HEALTH', lines);
 }
 
+const STATUS_COLOR: Record<ProbeStatus, (s: string) => string> = {
+  ok: chalk.green,
+  failed: chalk.red,
+  timeout: chalk.red,
+  skipped: chalk.gray,
+};
+
+export function notesSection(diagnostics: Diagnostic[]) {
+  if (diagnostics.length === 0) return;
+
+  const lines: string[] = [];
+
+  for (const d of diagnostics) {
+    // Pad the plain text before colouring - padRight counts ANSI bytes.
+    const scope = chalk.white(padRight(d.scope, 18));
+    const status = STATUS_COLOR[d.status](padRight(d.status, 9));
+    const duration = chalk.gray(padLeft(`${Math.round(d.durationMs)}ms`, 8));
+    lines.push(`${scope}${status}${duration}`);
+
+    // Detail goes on its own line: the whole point of --verbose is reading it,
+    // and squeezing it into the remaining columns truncates it to nonsense.
+    if (d.detail) {
+      lines.push(chalk.gray(`  ${d.detail.slice(0, BOX_WIDTH - 6)}`));
+    }
+  }
+
+  section('NOTES', lines);
+}
+
 export interface ScanResults {
   connection?: ConnectionInfo;
   devices?: Device[];
@@ -199,6 +239,7 @@ export interface ScanResults {
   isp?: IspInfo;
   traceroute?: TraceHop[];
   health?: HealthCheck[];
+  diagnostics?: Diagnostic[];
 }
 
 export function outputJson(results: ScanResults) {
